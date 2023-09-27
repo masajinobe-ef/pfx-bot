@@ -28,9 +28,7 @@ func main() {
 		fmt.Println("Переменная OPEN_AI не найдена")
 	}
 
-	// Авторизаций бота
 	bot, bot_err := tgbotapi.NewBotAPI(pfx_token)
-	// Консольный режим отладки
 	bot.Debug = false
 
 	log.Printf("Авторизовано на аккаунте: %s", bot.Self.UserName)
@@ -39,30 +37,29 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
-	// Лог ошибок bot_err
 	if bot_err != nil {
 		log.Panic(bot_err)
 	}
 
 	for update := range updates {
-		if update.Message == nil { // Игнорируйте любые обновления, не являющиеся Messages
+		if update.Message == nil {
 			continue
 		}
-
-		// OpenAI
-		client := openai.NewClient(openai_token)
-		messages := make([]openai.ChatCompletionMessage, 0)
 
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
 		msg.Text = update.Message.Text
 
-		//log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+		// OpenAI
+		client := openai.NewClient(openai_token)
+		messages := make([]openai.ChatCompletionMessage, 0)
 
 		if strings.Contains(msg.Text, "@"+bot.Self.UserName) {
 			messages = append(messages, openai.ChatCompletionMessage{
 				Role:    openai.ChatMessageRoleUser,
 				Content: msg.Text,
 			})
+
+			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 			response, gpt_err := client.CreateChatCompletion(
 				context.Background(),
@@ -73,11 +70,15 @@ func main() {
 			)
 
 			content := response.Choices[0].Message.Content
-			//log.Printf(content)
+
 			messages = append(messages, openai.ChatCompletionMessage{
 				Role:    openai.ChatMessageRoleAssistant,
 				Content: content,
 			})
+
+			if messages != nil {
+				log.Printf("☑Ответ получен")
+			}
 
 			if gpt_err != nil {
 				log.Printf("Ошибка чата: %v\n", gpt_err)
