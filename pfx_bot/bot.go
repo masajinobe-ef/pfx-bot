@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	openai "github.com/sashabaranov/go-openai"
@@ -41,52 +42,61 @@ func main() {
 		log.Panic(bot_err)
 	}
 
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
-		msg.Text = update.Message.Text
+	go func() {
+		defer wg.Done()
 
-		// OpenAI
-		client := openai.NewClient(openai_token)
-		messages := make([]openai.ChatCompletionMessage, 0)
-
-		if strings.Contains(msg.Text, "@"+bot.Self.UserName) {
-			messages = append(messages, openai.ChatCompletionMessage{
-				Role:    openai.ChatMessageRoleUser,
-				Content: msg.Text,
-			})
-
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-			response, gpt_err := client.CreateChatCompletion(
-				context.Background(),
-				openai.ChatCompletionRequest{
-					Model:    openai.GPT3Dot5Turbo,
-					Messages: messages,
-				},
-			)
-
-			content := response.Choices[0].Message.Content
-
-			messages = append(messages, openai.ChatCompletionMessage{
-				Role:    openai.ChatMessageRoleAssistant,
-				Content: content,
-			})
-
-			if messages != nil {
-				log.Printf("☑Ответ получен")
+		for update := range updates {
+			if update.Message == nil {
+				continue
 			}
 
-			if gpt_err != nil {
-				log.Printf("Ошибка чата: %v\n", gpt_err)
-			}
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+			msg.Text = update.Message.Text
 
-			ai_msg := tgbotapi.NewMessage(update.Message.Chat.ID, content)
-			ai_msg.ReplyToMessageID = update.Message.MessageID
-			bot.Send(ai_msg)
+			// OpenAI
+			client := openai.NewClient(openai_token)
+			messages := make([]openai.ChatCompletionMessage, 0)
+
+			if strings.Contains(msg.Text, "@"+bot.Self.UserName) {
+				messages = append(messages, openai.ChatCompletionMessage{
+					Role:    openai.ChatMessageRoleUser,
+					Content: msg.Text,
+				})
+
+				log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+
+				response, gpt_err := client.CreateChatCompletion(
+					context.Background(),
+					openai.ChatCompletionRequest{
+						Model:    openai.GPT3Dot5Turbo,
+						Messages: messages,
+					},
+				)
+
+				content := response.Choices[0].Message.Content
+
+				messages = append(messages, openai.ChatCompletionMessage{
+					Role:    openai.ChatMessageRoleAssistant,
+					Content: content,
+				})
+
+				if messages != nil {
+					log.Printf("☑️Ответ получен")
+				}
+
+				if gpt_err != nil {
+					log.Printf("Ошибка чата: %v\n", gpt_err)
+				}
+
+				ai_msg := tgbotapi.NewMessage(update.Message.Chat.ID, content)
+				ai_msg.ReplyToMessageID = update.Message.MessageID
+				bot.Send(ai_msg)
+			}
 		}
-	}
+	}()
+
+	wg.Wait()
 }
