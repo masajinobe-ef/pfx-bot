@@ -1,2 +1,2 @@
-# tg_pfx_bot
+# Golang Telegram Bot
 Golang Telegram Bot
