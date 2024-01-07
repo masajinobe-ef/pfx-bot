@@ -1,0 +1,1 @@
+start pwsh.exe -Command "go run bot.go"
